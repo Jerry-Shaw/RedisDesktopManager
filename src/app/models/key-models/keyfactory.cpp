@@ -8,6 +8,7 @@
 #include "rejsonkey.h"
 #include "setkey.h"
 #include "sortedsetkey.h"
+#include "stream.h"
 #include "stringkey.h"
 
 KeyFactory::KeyFactory() {}
@@ -90,20 +91,20 @@ void KeyFactory::createNewKeyRequest(
   emit newKeyDialog(NewKeyRequest(connection, dbIndex, callback, keyPrefix));
 }
 
-void KeyFactory::submitNewKeyRequest(NewKeyRequest r, QJSValue jsCallback) {
+void KeyFactory::submitNewKeyRequest(NewKeyRequest r) {
   QSharedPointer<ValueEditor::Model> result = createModel(
       r.keyType(), r.connection(), r.keyName().toUtf8(), r.dbIndex(), -1);
 
   if (!result) return;
 
-  result->addRow(r.value(), [r, &jsCallback](const QString& err) {
+  result->addRow(r.value(), [this, r, result](const QString& err) {
     if (err.size() > 0) {
-      if (jsCallback.isCallable()) jsCallback.call(QJSValueList{err});
+      emit error(err);
       return;
     }
 
-    if (jsCallback.isCallable()) jsCallback.call(QJSValueList{});
     r.callback();
+    emit keyAdded();
   });
 }
 
@@ -128,6 +129,9 @@ QSharedPointer<ValueEditor::Model> KeyFactory::createModel(
   } else if (type == "ReJSON-RL") {
     return QSharedPointer<ValueEditor::Model>(
         new ReJSONKeyModel(connection, keyFullPath, dbIndex, ttl));
+  } else if (type == "stream") {
+    return QSharedPointer<ValueEditor::Model>(
+        new StreamKeyModel(connection, keyFullPath, dbIndex, ttl));
   }
 
   return QSharedPointer<ValueEditor::Model>();
